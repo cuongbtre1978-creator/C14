@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CL-Trợ lí Hóa học: Game Show Chọn Tên Ngẫu Nhiên</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Confetti & File Parsers -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #0f3923;
+            overflow: hidden;
+            color: white;
+            user-select: none;
+        }
+
+        /* Hiệu ứng tuyết rơi */
+        .snowflake {
+            position: absolute;
+            top: -10px;
+            color: #fff;
+            animation: fall linear infinite;
+            z-index: 1;
+            pointer-events: none;
+        }
+        @keyframes fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+
+        /* LED Border */
+        .led-border {
+            box-shadow: 0 0 10px #ff0000;
+            animation: led-blink 1.5s infinite alternate;
+            border: 4px solid gold;
+        }
+        @keyframes led-blink {
+            0% { border-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
+            50% { border-color: #00ff00; box-shadow: 0 0 10px #00ff00; }
+            100% { border-color: #ffff00; box-shadow: 0 0 10px #ffff00; }
+        }
+
+        .btn-3d {
+            transition: all 0.1s;
+            box-shadow: 0px 4px 0px 0px #064e3b;
+            transform: translateY(0);
+        }
+        .btn-3d:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        /* Question Buttons */
+        .q-btn {
+            background: linear-gradient(to bottom, #fcd34d, #f59e0b);
+            color: #374151;
+            font-weight: bold;
+            border-radius: 8px;
+            border: 2px solid #fff;
+            transition: 0.2s;
+        }
+        .q-btn.used {
+            background: linear-gradient(to bottom, #6b7280, #374151) !important;
+            color: #d1d5db !important;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.85);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: linear-gradient(135deg, #064e3b 0%, #111827 100%);
+            border: 4px solid gold;
+            border-radius: 15px;
+            padding: 30px;
+            width: 80%;
+            max-width: 900px;
+            text-align: center;
+            position: relative;
+            animation: zoomIn 0.3s ease-out;
+        }
+        @keyframes zoomIn { from {transform: scale(0.5); opacity: 0;} to {transform: scale(1); opacity: 1;} }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
+
+        .history-slot {
+            height: 40px;
+            border: 2px solid white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        /* Input điền số */
+        .number-input {
+            width: 150px;
+            padding: 10px;
+            font-size: 1.5rem;
+            text-align: center;
+            border: 3px solid #f59e0b;
+            border-radius: 10px;
+            background: #fff;
+            color: #000;
+            box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
+        }
+
+        /* Custom Notification */
+        #customNotify {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            background: #1e40af;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border-left: 5px solid #fbbf24;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+            transform: translateX(150%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #customNotify.show { transform: translateX(0); }
+
+
+        /* ===== HIỂN THỊ CÔNG THỨC TOÁN - LÝ - HÓA ===== */
+        .formula-render { font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; line-height: 1.55; }
+        .formula-render sub { font-size: 0.72em; vertical-align: -0.28em; line-height: 0; }
+        .formula-render sup { font-size: 0.72em; vertical-align: 0.58em; line-height: 0; }
+        .math-frac { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; vertical-align:middle; margin:0 .12em; line-height:1.05; }
+        .math-frac > .num { border-bottom:1.7px solid currentColor; padding:0 .18em .06em; }
+        .math-frac > .den { padding:.06em .18em 0; }
+        .math-sqrt { display:inline-flex; align-items:flex-start; }
+        .math-sqrt .radicand { border-top:1.5px solid currentColor; padding:0 .12em; margin-top:.16em; }
+        .chem-eq { white-space:normal; }
+        #qContent, #answerArea button { overflow-wrap:anywhere; }
+        #qContent { font-family: Roboto, "Cambria Math", "Times New Roman", sans-serif; }
+
+        /* Fallback tối thiểu nếu Tailwind CDN bị chặn: giữ bố cục 25%-50%-25% */
+        body.h-screen.flex.flex-row { height:100vh; display:flex; flex-direction:row; }
+        .w-1\/4 { width:25%; } .w-2\/4 { width:50%; } .h-full { height:100%; }
+        .flex { display:flex; } .flex-col { flex-direction:column; } .flex-row { flex-direction:row; }
+        .flex-1 { flex:1 1 0%; } .items-center { align-items:center; } .justify-center { justify-content:center; }
+        .relative { position:relative; } .absolute { position:absolute; } .hidden { display:none !important; }
+        .grid { display:grid; } .grid-cols-1 { grid-template-columns:repeat(1,minmax(0,1fr)); }
+        .grid-cols-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } .grid-cols-5 { grid-template-columns:repeat(5,minmax(0,1fr)); }
+        .overflow-hidden { overflow:hidden; } .overflow-y-auto { overflow-y:auto; }
+        .text-center { text-align:center; } .font-bold { font-weight:700; } .font-black { font-weight:900; }
+        .uppercase { text-transform:uppercase; } .rounded { border-radius:.25rem; } .rounded-lg { border-radius:.5rem; }
+        .gap-1 { gap:.25rem; } .gap-2 { gap:.5rem; } .gap-3 { gap:.75rem; } .gap-4 { gap:1rem; } .gap-6 { gap:1.5rem; } .gap-10 { gap:2.5rem; }
+        .p-2 { padding:.5rem; } .p-4 { padding:1rem; } .px-2 { padding-left:.5rem; padding-right:.5rem; }
+        .py-1 { padding-top:.25rem; padding-bottom:.25rem; } .py-2 { padding-top:.5rem; padding-bottom:.5rem; }
+        .mb-2 { margin-bottom:.5rem; } .mb-4 { margin-bottom:1rem; } .mb-8 { margin-bottom:2rem; } .mt-1 { margin-top:.25rem; } .mt-6 { margin-top:1.5rem; }
+        .text-xs { font-size:.75rem; } .text-sm { font-size:.875rem; } .text-lg { font-size:1.125rem; } .text-xl { font-size:1.25rem; } .text-2xl { font-size:1.5rem; } .text-3xl { font-size:1.875rem; }
+/* ===== TĂNG SIZE CHỮ PHẦN CÂU HỎI LÊN 1.5 LẦN ===== */
+
+/* 35 nút Câu 1 → Câu 35 */
+#questionGrid .q-btn {
+    font-size: 22px !important;
+}
+
+/* Nội dung câu hỏi trong popup */
+#qContent {
+    font-size: 30px !important;
+    line-height: 1.5 !important;
+}
+
+/* 4 đáp án A, B, C, D */
+#answerArea button {
+    font-size: 27px !important;
+    line-height: 1.45 !important;
+}
+/* ===== TĂNG SIZE CHỮ KHU BÊN PHẢI 1.5 LẦN ===== */
+
+/* Tiêu đề HỌC SINH THAM GIA */
+.w-1\/4 h2 {
+    font-size: 1.5rem !important;
+}
+
+/* Tên học sinh và các ô Câu 1, Câu 2,... */
+#historyBoard .history-slot {
+    font-size: 1.275rem !important;
+    height: 60px !important;
+}
+#historyBoard .history-slot:not(:empty) {
+    font-weight: 700;
+}
+/* ===== PHÓNG TO 3 NÚT NHẠC - MỞ NHẠC - CHƠI LẠI ===== */
+
+#musicFile + button,
+#musicFile + button + button,
+#musicFile + button + button + button {
+    font-size: 28px !important;   /* gấp khoảng 2 lần text-sm */
+    padding: 16px 32px !important;
+    min-width: 190px !important;  /* dãn ô ra để chữ không bị chật */
+    min-height: 64px !important;
+    white-space: nowrap !important;
+    border-radius: 12px !important;
+    gap: 12px !important;
+}
+.h-16.flex.gap-4.justify-center.items-center button {
+    width: 210px !important;
+}
+/* ===== PHÓNG TO CHỮ KHU ĐIỀU KHIỂN BÊN TRÁI ===== */
+
+/* Nút Xóa tên + Đóng */
+.w-1\/4 > .flex.gap-1.h-10 button {
+    font-size: 22px !important;
+    min-height: 58px !important;
+    padding: 12px 18px !important;
+    white-space: nowrap !important;
+}
+
+/* Tiêu đề HỆ THỐNG DỮ LIỆU */
+.w-1\/4 .bg-black\/40 p {
+    font-size: 18px !important;
+    padding: 8px 0 !important;
+}
+
+/* Nút THÊM HỌC SINH + NẠP CÂU HỎI */
+.w-1\/4 .bg-black\/40 button {
+    font-size: 21px !important;
+    min-height: 58px !important;
+    padding: 12px 16px !important;
+    white-space: nowrap !important;
+}
+
+/* Chữ Trạng thái */
+#feedbackPlaceholder {
+    font-size: 20px !important;
+}
+
+/* Kết quả đúng/sai, phần thưởng */
+#feedbackArea,
+#feedbackTitle,
+#giftResult {
+    font-size: 20px !important;
+}
+/* ===== PHÓNG TO KHUNG TIÊU ĐỀ PHÍA TRÊN ===== */
+
+/* Dãn chiều cao khung tiêu đề */
+.w-2\/4 > .h-\[15\%\] {
+    height: 22% !important;
+    padding: 12px 10px !important;
+}
+
+/* Dòng tên trường */
+.w-2\/4 > .h-\[15\%\] > div:first-child {
+    font-size: 27px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+}
+
+/* Dòng CHỌN TÊN NGẪU NHIÊN - NHẬN QUÀ */
+.w-2\/4 > .h-\[15\%\] > div:nth-child(2) {
+    font-size: 36px !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+}
+
+/* ===== BACKGROUND RIÊNG CHO KHUNG 35 CÂU HỎI =====
+   Đặt file n.png cùng thư mục với file HTML.
+*/
+#questionGrid {
+    background-image:
+        linear-gradient(rgba(4, 38, 25, 0.28), rgba(4, 38, 25, 0.28)),
+        url("n.png") !important;
+    background-size: cover !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+    background-color: transparent !important;
+}
+
+</style>
+</head>
+<body class="h-screen flex flex-row p-2 gap-2 overflow-hidden">
+
+    <!-- Thông báo tùy chỉnh -->
+    <div id="customNotify"></div>
+
+    <!-- CỘT TRÁI (25%): Vòng quay & Nạp dữ liệu -->
+    <div class="w-1/4 flex flex-col gap-2 h-full">
+        <!-- Vòng quay -->
+        <div class="h-[35%] bg-black/30 rounded-lg p-2 flex flex-col items-center justify-center relative border-2 border-yellow-500 led-border">
+            <div class="relative w-full aspect-square max-w-[200px] flex items-center justify-center">
+                <canvas id="wheelCanvas" width="300" height="300" class="w-full h-full object-contain"></canvas>
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 text-3xl text-red-600 z-10">
+                    <i class="fas fa-caret-down"></i>
+                </div>
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full p-2 border-4 border-yellow-500 z-10 cursor-pointer shadow-lg active:scale-95 transition-transform" onclick="spinWheel()">
+                    <span class="font-bold text-red-600 text-xs">QUAY</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tên HS kết quả -->
+        <div class="h-[12%] bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg border-4 border-white flex items-center justify-center shadow-lg">
+            <span id="resultName" class="text-2xl font-black text-yellow-300 uppercase text-center px-2 truncate">???</span>
+        </div>
+
+        <!-- Nút điều khiển -->
+        <div class="flex gap-1 h-10">
+            <button onclick="removeName()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-md btn-3d text-xs">
+                <i class="fas fa-trash-alt mr-1"></i> Xóa tên
+            </button>
+            <button onclick="closeName()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded shadow-md btn-3d text-xs">
+                <i class="fas fa-times-circle mr-1"></i> Đóng
+            </button>
+        </div>
+
+        <!-- VÙNG NẠP DỮ LIỆU -->
+        <div class="bg-black/40 rounded-lg p-2 border border-yellow-500/50 flex flex-col gap-2">
+            <p class="text-[10px] text-yellow-400 font-bold uppercase text-center border-b border-yellow-500/30 pb-1">Hệ thống dữ liệu</p>
+            <div class="grid grid-cols-1 gap-2">
+                <button onclick="document.getElementById('fileHS').click()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 rounded text-[11px] flex items-center justify-center gap-2 btn-3d">
+                    <i class="fas fa-user-plus"></i> THÊM HỌC SINH (DOC/DOCX/EXCEL)
+                </button>
+                <button onclick="document.getElementById('fileCH').click()" class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 rounded text-[11px] flex items-center justify-center gap-2 btn-3d">
+                    <i class="fas fa-file-import"></i> NẠP CÂU HỎI (DOCX)
+                </button>
+            </div>
+            <input type="file" id="fileHS" hidden accept=".doc,.docx,.xlsx,.xls,.csv,.txt" onchange="handleHSFile(this)">
+            <input type="file" id="fileCH" hidden accept=".doc,.docx,.txt" onchange="handleCHFile(this)">
+        </div>
+
+        <!-- Thông báo kết quả / Phần thưởng -->
+        <div class="flex-1 bg-gradient-to-b from-purple-900 to-indigo-900 rounded-lg border-2 border-yellow-400 flex flex-col items-center justify-center p-2 text-center shadow-lg relative overflow-hidden">
+            <div id="feedbackArea" class="hidden w-full h-full flex flex-col items-center justify-center">
+                <h3 id="feedbackTitle" class="text-sm font-bold mb-2"></h3>
+                <div id="rewardSection" class="hidden flex flex-col gap-2 w-full">
+                    <button onclick="openGift()" class="w-full bg-yellow-500 text-red-900 font-bold py-1 px-2 rounded animate-bounce text-xs">
+                        <i class="fas fa-gift"></i> MỞ HỘP QUÀ
+                    </button>
+                    <div id="giftResult" class="text-yellow-300 font-bold text-sm mt-1 hidden"></div>
+                </div>
+            </div>
+            <div id="feedbackPlaceholder" class="text-gray-400 italic text-xs">Trạng thái...</div>
+        </div>
+    </div>
+
+    <!-- CỘT GIỮA (50%): Bảng câu hỏi -->
+    <div class="w-2/4 flex flex-col gap-2 h-full">
+        <div class="h-[15%] text-center flex flex-col justify-center bg-black/20 rounded-lg border border-white/20">
+            <div class="text-yellow-400 font-bold text-lg drop-shadow-md">
+                <i class="fas fa-atom text-cyan-400"></i> TRƯỜNG PHỔ THÔNG NK TDTT NGUYỄN THỊ ĐỊNH <i class="fas fa-flask text-pink-400"></i>
+            </div>
+            <div class="text-white font-black text-2xl uppercase tracking-wider drop-shadow-lg">
+                CHỌN TÊN NGẪU NHIÊN - NHẬN QUÀ
+            </div>
+        </div>
+
+        <!-- Grid Câu hỏi linh hoạt -->
+        <div id="questionGrid" class="flex-1 bg-black/40 rounded-lg p-4 grid grid-cols-5 gap-3 border-2 border-white/30 overflow-y-auto custom-scrollbar">
+            <!-- Render JS -->
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="h-16 flex gap-4 justify-center items-center">
+            <input type="file" id="musicFile" accept="audio/*" class="hidden" onchange="loadMusic(this)">
+            <button onclick="toggleMusic()" class="btn-3d bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 px-6 rounded-lg text-sm flex items-center gap-2">
+                <i id="musicIcon" class="fas fa-volume-mute"></i> Nhạc
+            </button>
+            <button onclick="document.getElementById('musicFile').click()" class="btn-3d bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg text-sm flex items-center gap-2">
+                <i class="fas fa-folder-open"></i> Mở Nhạc
+            </button>
+            <button onclick="resetGame()" class="btn-3d bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg text-sm flex items-center gap-2">
+                <i class="fas fa-redo"></i> Chơi Lại
+            </button>
+        </div>
+    </div>
+
+    <!-- CỘT PHẢI (25%): Học sinh tham gia -->
+    <div class="w-1/4 bg-green-900/80 rounded-lg border-4 border-green-400 flex flex-col shadow-2xl overflow-hidden relative h-full">
+        <div class="bg-green-700 text-center py-2 border-b-2 border-green-500">
+            <h2 class="font-bold text-white text-md uppercase">
+                <i class="fas fa-users"></i> HỌC SINH THAM GIA
+            </h2>
+        </div>
+        <div id="historyBoard" class="flex-1 p-2 grid grid-cols-1 gap-1 overflow-y-auto custom-scrollbar">
+            <!-- Render JS -->
+        </div>
+    </div>
+
+    <!-- Modal Câu Hỏi -->
+    <div id="questionModal" class="modal">
+        <div class="modal-content">
+            <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full bg-white border-4 border-red-600 flex items-center justify-center shadow-lg z-50">
+                <span id="timer" class="text-3xl font-black text-red-600">25</span>
+            </div>
+            <h2 class="text-2xl font-bold text-yellow-400 mt-6 mb-4 border-b border-white/20 pb-2 uppercase">
+                Câu hỏi số <span id="qNumberDisplay"></span>
+            </h2>
+            <div id="qContent" class="text-xl text-white font-medium mb-8 min-h-[100px] flex items-center justify-center px-4">
+                <!-- Nội dung -->
+            </div>
+            <div id="answerArea" class="w-full">
+                <!-- Render -->
+            </div>
+        </div>
+    </div>
+
+    <audio id="bgMusic" loop></audio>
+<!-- Đặt q.mp3, d.mp3, s.mp3 cùng thư mục với index.html -->
+<audio id="spinSound" src="q.mp3" preload="auto"></audio>
+<audio id="correctSound" src="d.mp3" preload="auto"></audio>
+<audio id="wrongSound" src="s.mp3" preload="auto"></audio>
+<audio id="clickSound" src="click.mp3" preload="auto"></audio>
+<script>
+        // --- DỮ LIỆU BAN ĐẦU ---
+        let students = ["Lê Hoàng Anh", "Trần Phương Anh", "Đặng Gia Bảo", "Phạm Thanh Hào", "Nguyễn Kim Khánh", "Trương Anh Khoa", "Lê Minh Khôi", "Văn Minh Lộc", "Hồ Thị Mỹ Ngân", "Nguyễn Thiện Nhân"];
+        let availableStudents = [...students];
+        let currentStudent = null;
+        
+        let questions = [
+            { id: 1, type: 'mcq', q: "Chất nào là hợp chất hữu cơ?", a: ["CO2", "CH4", "Na2CO3", "CaO"], correct: 1 },
+            { id: 2, type: 'mcq', q: "Liên kết trong hợp chất hữu cơ chủ yếu là?", a: ["Liên kết ion", "Liên kết cộng hóa trị", "Liên kết kim loại", "Liên kết hidro"], correct: 1 },
+            { id: 3, type: 'mcq', q: "Nguyên tố nào luôn có mặt trong hợp chất hữu cơ?", a: ["Nitrogen", "Carbon", "Oxygen", "Sulfur"], correct: 1 },
+            { id: 4, type: 'mcq', q: "Dãy nào gồm các chất là đồng đẳng?", a: ["CH4, C2H4", "CH4, C2H6", "C2H4, C3H4", "C2H2, C2H4"], correct: 1 },
+            { id: 5, type: 'mcq', q: "Công thức đơn giản nhất cho biết gì?", a: ["Tỉ lệ tối giản các nguyên tử", "Số lượng nguyên tử chính xác", "Cấu trúc phân tử", "Khối lượng phân tử"], correct: 0 },
+            { id: 6, type: 'mcq', q: "Công thức phân tử của methane là?", a: ["CH4", "C2H6", "C2H4", "C2H2"], correct: 0 },
+            { id: 7, type: 'mcq', q: "Chất nào sau đây thuộc dãy đồng đẳng alkane?", a: ["C2H4", "C2H2", "C3H8", "C6H6"], correct: 2 },
+            { id: 8, type: 'mcq', q: "Công thức chung của alkane mạch hở là?", a: ["CnH2n", "CnH2n+2", "CnH2n-2", "CnH2n-6"], correct: 1 },
+            { id: 9, type: 'mcq', q: "Hydrocarbon là hợp chất hữu cơ chỉ chứa các nguyên tố nào?", a: ["C và H", "C và O", "H và O", "C, H và O"], correct: 0 },
+            { id: 10, type: 'mcq', q: "Chất nào sau đây là alkene?", a: ["CH4", "C2H6", "C2H4", "C2H2"], correct: 2 },
+            { id: 11, type: 'mcq', q: "Công thức chung của alkene mạch hở có một liên kết đôi là?", a: ["CnH2n+2", "CnH2n", "CnH2n-2", "CnH2n-6"], correct: 1 },
+            { id: 12, type: 'mcq', q: "Chất nào sau đây là alkyne?", a: ["C2H2", "C2H4", "C2H6", "CH4"], correct: 0 },
+            { id: 13, type: 'mcq', q: "Phản ứng đặc trưng của alkene là?", a: ["Phản ứng cộng", "Phản ứng thế", "Phản ứng trao đổi", "Phản ứng trung hòa"], correct: 0 },
+            { id: 14, type: 'mcq', q: "Chất nào làm mất màu dung dịch bromine ở điều kiện thường?", a: ["CH4", "C2H6", "C2H4", "C3H8"], correct: 2 },
+            { id: 15, type: 'mcq', q: "Tên gọi của C2H6 là?", a: ["Methane", "Ethane", "Ethene", "Ethyne"], correct: 1 },
+            { id: 16, type: 'mcq', q: "Tên gọi của C2H4 là?", a: ["Ethane", "Ethene", "Ethyne", "Methane"], correct: 1 },
+            { id: 17, type: 'mcq', q: "Tên gọi của C2H2 là?", a: ["Ethane", "Ethene", "Ethyne", "Propane"], correct: 2 },
+            { id: 18, type: 'mcq', q: "Trong phân tử ethene có bao nhiêu liên kết đôi C=C?", a: ["0", "1", "2", "3"], correct: 1 },
+            { id: 19, type: 'mcq', q: "Trong phân tử ethyne có bao nhiêu liên kết ba C≡C?", a: ["0", "1", "2", "3"], correct: 1 },
+            { id: 20, type: 'mcq', q: "Khi đốt cháy hoàn toàn hydrocarbon, sản phẩm luôn có?", a: ["CO2 và H2O", "CO và H2", "C và H2O", "CO2 và O2"], correct: 0 },
+            { id: 21, type: 'mcq', q: "Công thức chung của alkyne mạch hở có một liên kết ba là?", a: ["CnH2n+2", "CnH2n", "CnH2n-2", "CnH2n-6"], correct: 2 },
+            { id: 22, type: 'mcq', q: "Hydrocarbon no mạch hở thuộc dãy đồng đẳng nào?", a: ["Alkane", "Alkene", "Alkyne", "Arene"], correct: 0 },
+            { id: 23, type: 'mcq', q: "Chất nào sau đây là alkane?", a: ["C3H8", "C3H6", "C3H4", "C6H6"], correct: 0 },
+            { id: 24, type: 'mcq', q: "Chất nào sau đây là alkene?", a: ["C4H10", "C4H8", "C4H6", "CH4"], correct: 1 },
+            { id: 25, type: 'mcq', q: "Chất nào sau đây là alkyne?", a: ["C3H8", "C3H6", "C3H4", "C2H6"], correct: 2 },
+            { id: 26, type: 'mcq', q: "Phản ứng đặc trưng của alkane là?", a: ["Phản ứng thế", "Phản ứng cộng", "Phản ứng trùng hợp", "Phản ứng trao đổi"], correct: 0 },
+            { id: 27, type: 'mcq', q: "Phản ứng đặc trưng của alkene là?", a: ["Phản ứng cộng", "Phản ứng thế", "Phản ứng trao đổi", "Phản ứng phân hủy"], correct: 0 },
+            { id: 28, type: 'mcq', q: "Ethene có công thức phân tử là?", a: ["C2H2", "C2H4", "C2H6", "CH4"], correct: 1 },
+            { id: 29, type: 'mcq', q: "Ethyne có công thức phân tử là?", a: ["C2H2", "C2H4", "C2H6", "C3H8"], correct: 0 },
+            { id: 30, type: 'mcq', q: "Propane có công thức phân tử là?", a: ["C3H4", "C3H6", "C3H8", "C2H6"], correct: 2 },
+            { id: 31, type: 'mcq', q: "Trong phân tử methane có bao nhiêu nguyên tử hydrogen?", a: ["1", "2", "3", "4"], correct: 3 },
+            { id: 32, type: 'mcq', q: "Trong phân tử ethane có bao nhiêu nguyên tử carbon?", a: ["1", "2", "3", "4"], correct: 1 },
+            { id: 33, type: 'mcq', q: "Chất nào làm mất màu dung dịch bromine ở điều kiện thường?", a: ["CH4", "C2H6", "C2H4", "C3H8"], correct: 2 },
+            { id: 34, type: 'mcq', q: "Sản phẩm của phản ứng cháy hoàn toàn methane gồm?", a: ["CO2 và H2O", "CO và H2", "C và H2", "CO2 và O2"], correct: 0 },
+            { id: 35, type: 'mcq', q: "Hydrocarbon chỉ chứa những nguyên tố nào?", a: ["C và H", "C và O", "H và O", "C, H và O"], correct: 0 }
+        ];
+
+        let historyData = []; 
+        let timerInterval;
+        const rewards = ["+1 Điểm", "1 Tràng pháo tay", "1 Cây kẹo", "1 Que bánh", "1 Viên Socola", "Thêm 1 lượt quay"];
+
+        // --- KHỞI TẠO ---
+        window.onload = function() {
+            createSnowflakes();
+            initWheel();
+            refreshGameUI();
+        };
+
+        function refreshGameUI() {
+            renderQuestionGrid();
+            initHistoryBoard();
+        }
+
+        // --- THÔNG BÁO TÙY CHỈNH ---
+        function showNotify(msg) {
+            const el = document.getElementById('customNotify');
+            el.innerText = msg;
+            el.classList.add('show');
+            setTimeout(() => { el.classList.remove('show'); }, 4000);
+        }
+
+        // --- CÔNG CỤ ĐỌC FILE & RENDER CÔNG THỨC ---
+        const MAX_QUESTIONS = 35;
+
+        function escapeHtml(text='') {
+            return String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+        }
+
+        // ZIP reader thuần trình duyệt: dùng để đọc DOCX/XLSX mà không phụ thuộc thư viện ngoài.
+        async function unzipEntries(arrayBuffer) {
+            const bytes = new Uint8Array(arrayBuffer);
+            const view = new DataView(arrayBuffer);
+            const out = {};
+            let eocd = -1;
+            for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+                if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+            }
+            if (eocd < 0) throw new Error('Không tìm thấy cấu trúc ZIP của file.');
+            const total = view.getUint16(eocd + 10, true);
+            let ptr = view.getUint32(eocd + 16, true);
+            const td = new TextDecoder('utf-8');
+            for (let n = 0; n < total; n++) {
+                if (view.getUint32(ptr, true) !== 0x02014b50) break;
+                const method = view.getUint16(ptr + 10, true);
+                const compSize = view.getUint32(ptr + 20, true);
+                const uncompSize = view.getUint32(ptr + 24, true);
+                const nameLen = view.getUint16(ptr + 28, true);
+                const extraLen = view.getUint16(ptr + 30, true);
+                const commentLen = view.getUint16(ptr + 32, true);
+                const localOffset = view.getUint32(ptr + 42, true);
+                const name = td.decode(bytes.slice(ptr + 46, ptr + 46 + nameLen));
+                const localNameLen = view.getUint16(localOffset + 26, true);
+                const localExtraLen = view.getUint16(localOffset + 28, true);
+                const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+                const comp = bytes.slice(dataStart, dataStart + compSize);
+                let data;
+                if (method === 0) data = comp;
+                else if (method === 8 && 'DecompressionStream' in window) {
+                    const ds = new DecompressionStream('deflate-raw');
+                    data = new Uint8Array(await new Response(new Blob([comp]).stream().pipeThrough(ds)).arrayBuffer());
+                } else throw new Error('Trình duyệt chưa hỗ trợ giải nén DOCX/XLSX. Hãy dùng Chrome/Edge mới.');
+                if (!uncompSize || data.length === uncompSize) out[name] = data;
+                else out[name] = data;
+                ptr += 46 + nameLen + extraLen + commentLen;
+            }
+            return out;
+        }
+
+        const WNS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        const MNS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+
+        function xmlDocFromBytes(bytes) {
+            return new DOMParser().parseFromString(new TextDecoder('utf-8').decode(bytes), 'application/xml');
+        }
+        function localName(n){ return n.localName || n.nodeName.split(':').pop(); }
+        function attrVal(node, name) {
+            if (!node || !node.attributes) return '';
+            for (const a of node.attributes) if (a.localName === name) return a.value;
+            return '';
+        }
+        function firstChildByLocal(node, nm) {
+            return [...(node?.children || [])].find(c => localName(c) === nm) || null;
+        }
+        function childrenByLocal(node, nm) {
+            return [...(node?.children || [])].filter(c => localName(c) === nm);
+        }
+
+        function ommlToHtml(node) {
+            if (!node) return '';
+            const nm = localName(node);
+            if (nm === 't') return escapeHtml(node.textContent || '');
+            if (nm === 'r') return [...node.children].map(ommlToHtml).join('');
+            if (nm === 'sSub') {
+                const e = firstChildByLocal(node,'e'), sub = firstChildByLocal(node,'sub');
+                return ommlToHtml(e) + '<sub>' + ommlToHtml(sub) + '</sub>';
+            }
+            if (nm === 'sSup') {
+                const e = firstChildByLocal(node,'e'), sup = firstChildByLocal(node,'sup');
+                return ommlToHtml(e) + '<sup>' + ommlToHtml(sup) + '</sup>';
+            }
+            if (nm === 'sSubSup') {
+                const e = firstChildByLocal(node,'e'), sub = firstChildByLocal(node,'sub'), sup = firstChildByLocal(node,'sup');
+                return ommlToHtml(e) + '<sub>' + ommlToHtml(sub) + '</sub><sup>' + ommlToHtml(sup) + '</sup>';
+            }
+            if (nm === 'f') {
+                const num = firstChildByLocal(node,'num'), den = firstChildByLocal(node,'den');
+                return '<span class="math-frac"><span class="num">'+ommlToHtml(num)+'</span><span class="den">'+ommlToHtml(den)+'</span></span>';
+            }
+            if (nm === 'rad') {
+                const e = firstChildByLocal(node,'e');
+                return '<span class="math-sqrt">√<span class="radicand">'+ommlToHtml(e)+'</span></span>';
+            }
+            if (nm === 'd') {
+                const e = firstChildByLocal(node,'e'); return '(' + ommlToHtml(e) + ')';
+            }
+            if (nm === 'nary') {
+                const chrNode = node.querySelector('[\\:val]');
+                const e = firstChildByLocal(node,'e'), sub = firstChildByLocal(node,'sub'), sup = firstChildByLocal(node,'sup');
+                let sym = '∑';
+                if (chrNode) sym = attrVal(chrNode,'val') || sym;
+                return sym + (sub?'<sub>'+ommlToHtml(sub)+'</sub>':'') + (sup?'<sup>'+ommlToHtml(sup)+'</sup>':'') + ommlToHtml(e);
+            }
+            if (nm === 'limLow' || nm === 'limUpp') {
+                const e = firstChildByLocal(node,'e'), lim = firstChildByLocal(node,'lim');
+                return ommlToHtml(e) + (nm==='limLow'?'<sub>':'<sup>') + ommlToHtml(lim) + (nm==='limLow'?'</sub>':'</sup>');
+            }
+            return [...(node.children || [])].map(ommlToHtml).join('');
+        }
+
+        // Đọc một paragraph Word thành NHIỀU dòng logic.
+        // Hỗ trợ cả Enter và Shift+Enter (w:br / w:cr), rất quan trọng với danh sách học sinh.
+        // Đồng thời giữ lại định dạng để nhận diện đáp án đúng:
+        // - toàn dòng in đậm
+        // - có gạch chân
+        // - có tô màu/highlight
+        function wordParagraphToRichLines(p) {
+            const lines = [];
+
+            function freshLine() {
+                return {
+                    html: '',
+                    plain: '',
+                    textRuns: 0,
+                    boldRuns: 0,
+                    underlineRuns: 0,
+                    highlightRuns: 0
+                };
+            }
+
+            let cur = freshLine();
+
+            function flushLine() {
+                const plain = cur.plain.replace(/\u00A0/g, ' ').trim();
+                const html = cur.html.trim();
+
+                if (plain || html) {
+                    lines.push({
+                        html,
+                        plain,
+                        boldAll: cur.textRuns > 0 && cur.boldRuns === cur.textRuns,
+                        underlineAny: cur.underlineRuns > 0,
+                        highlightAny: cur.highlightRuns > 0
+                    });
+                }
+                cur = freshLine();
+            }
+
+            function appendText(txt, rPr) {
+                if (!txt) return;
+
+                let vert = '', bold = false, italic = false;
+                let underline = false, highlighted = false;
+
+                if (rPr) {
+                    const va = firstChildByLocal(rPr, 'vertAlign');
+                    vert = attrVal(va, 'val');
+
+                    bold = !!firstChildByLocal(rPr, 'b');
+                    italic = !!firstChildByLocal(rPr, 'i');
+
+                    const u = firstChildByLocal(rPr, 'u');
+                    if (u) {
+                        const uv = (attrVal(u, 'val') || 'single').toLowerCase();
+                        underline = uv !== 'none' && uv !== '0' && uv !== 'false';
+                    }
+
+                    const hl = firstChildByLocal(rPr, 'highlight');
+                    if (hl) {
+                        const hv = (attrVal(hl, 'val') || '').toLowerCase();
+                        highlighted = hv !== '' && hv !== 'none';
+                    }
+
+                    const shd = firstChildByLocal(rPr, 'shd');
+                    if (shd) {
+                        const fill = (attrVal(shd, 'fill') || '').toLowerCase();
+                        if (fill && fill !== 'auto' && fill !== 'ffffff') highlighted = true;
+                    }
+                }
+
+                cur.plain += txt;
+                cur.textRuns++;
+
+                if (bold) cur.boldRuns++;
+                if (underline) cur.underlineRuns++;
+                if (highlighted) cur.highlightRuns++;
+
+                let h = escapeHtml(txt);
+                if (vert === 'subscript') h = '<sub>' + h + '</sub>';
+                if (vert === 'superscript') h = '<sup>' + h + '</sup>';
+                if (bold) h = '<strong>' + h + '</strong>';
+                if (italic) h = '<em>' + h + '</em>';
+                if (underline) h = '<u>' + h + '</u>';
+                if (highlighted) h = '<mark>' + h + '</mark>';
+
+                cur.html += h;
+            }
+
+            function processRun(r) {
+                const rPr = firstChildByLocal(r, 'rPr');
+
+                for (const rc of [...r.children]) {
+                    const nm = localName(rc);
+
+                    if (nm === 't' || nm === 'instrText') {
+                        appendText(rc.textContent || '', rPr);
+                    }
+                    else if (nm === 'tab') {
+                        appendText(' ', rPr);
+                    }
+                    else if (nm === 'br' || nm === 'cr') {
+                        flushLine();
+                    }
+                }
+            }
+
+            for (const child of [...p.children]) {
+                const nm = localName(child);
+
+                if (nm === 'r') {
+                    processRun(child);
+                }
+                else if (nm === 'oMath' || nm === 'oMathPara') {
+                    const h = ommlToHtml(child);
+                    cur.html += h;
+                    cur.plain += child.textContent || '';
+                }
+                else if (nm === 'hyperlink') {
+                    for (const r of [...child.children]) {
+                        if (localName(r) === 'r') processRun(r);
+                    }
+                }
+            }
+
+            flushLine();
+            return lines;
+        }
+
+        async function readDocxParagraphs(file) {
+            const zip = await unzipEntries(await file.arrayBuffer());
+            const docBytes = zip['word/document.xml'];
+            if (!docBytes) throw new Error('Không tìm thấy word/document.xml');
+
+            const xml = xmlDocFromBytes(docBytes);
+            const paragraphs = [...xml.getElementsByTagNameNS(WNS, 'p')];
+
+            return paragraphs
+                .flatMap(wordParagraphToRichLines)
+                .filter(x => x.plain || x.html);
+        }
+
+        function stripHtml(html='') { const d=document.createElement('div'); d.innerHTML=html; return (d.textContent||'').trim(); }
+
+        // Render nhẹ LaTeX thường gặp + tự định dạng công thức hóa học viết kiểu H2SO4, CnH2n+2.
+        const ELEMENTS = new Set(('H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og').split(' '));
+
+        function chemTokenToHtml(tok) {
+            if (!/[0-9]|\^|[+−-]$/.test(tok)) return escapeHtml(tok);
+            let i=0, parts=[], elementCount=0;
+            while(i<tok.length){
+                if(/[A-Z]/.test(tok[i])){
+                    let el=tok[i];
+                    if(i+1<tok.length && /[a-z]/.test(tok[i+1]) && ELEMENTS.has(tok.slice(i,i+2))){ el=tok.slice(i,i+2); i+=2; }
+                    else { i++; }
+                    if(!ELEMENTS.has(el)) return escapeHtml(tok);
+                    elementCount++; parts.push({el, idx:''});
+                    while(i<tok.length && !/[A-Z]/.test(tok[i]) && tok[i]!== '(' && tok[i]!==')') { parts[parts.length-1].idx += tok[i++]; }
+                } else { return escapeHtml(tok); }
+            }
+            let out='';
+            parts.forEach((p,pi)=>{
+                out += escapeHtml(p.el);
+                let idx=p.idx;
+                let charge='';
+                const m=idx.match(/\^([0-9]*[+\-−])$/); if(m){charge=m[1]; idx=idx.slice(0,m.index);}
+                else if(pi===parts.length-1 && /[+\-−]$/.test(idx)){
+                    if(elementCount===1 && /^\d+[+\-−]$/.test(idx)){ charge=idx; idx=''; }
+                    else { charge=idx.slice(-1); idx=idx.slice(0,-1); }
+                }
+                if(idx) out += '<sub>'+escapeHtml(idx.replace(/\+/g,'+').replace(/-/g,'−'))+'</sub>';
+                if(charge) out += '<sup>'+escapeHtml(charge.replace(/-/g,'−'))+'</sup>';
+            });
+            return out;
+        }
+
+        function latexLite(s) {
+            let out = escapeHtml(s);
+            const map = {'\\Delta':'Δ','\\rightarrow':'→','\\to':'→','\\rightleftharpoons':'⇌','\\leftrightarrow':'↔','\\cdot':'·','\\times':'×','\\pm':'±','\\infty':'∞','\\alpha':'α','\\beta':'β','\\gamma':'γ','\\lambda':'λ','\\mu':'μ','\\theta':'θ','\\pi':'π','\\omega':'ω','\\circ':'°'};
+            Object.entries(map).forEach(([k,v])=> out=out.split(k).join(v));
+            let prev;
+            do { prev=out; out=out.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g,'<span class="math-frac"><span class="num">$1</span><span class="den">$2</span></span>'); } while(out!==prev);
+            out=out.replace(/\\sqrt\{([^{}]+)\}/g,'<span class="math-sqrt">√<span class="radicand">$1</span></span>');
+            out=out.replace(/_\{([^{}]+)\}/g,'<sub>$1</sub>').replace(/\^\{([^{}]+)\}/g,'<sup>$1</sup>');
+            out=out.replace(/_([A-Za-z0-9+\-])/g,'<sub>$1</sub>').replace(/\^([A-Za-z0-9+\-])/g,'<sup>$1</sup>');
+            out=out.replace(/\\mathrm\{([^{}]+)\}/g,'$1').replace(/\\text\{([^{}]+)\}/g,'$1');
+            return out;
+        }
+
+        function autoFormulaText(text) {
+            let safe = escapeHtml(text);
+
+            // Chuẩn hóa các toán tử so sánh thường dùng.
+            safe = safe.replace(/&lt;=/g, '≤')
+                       .replace(/&gt;=/g, '≥')
+                       .replace(/!=/g, '≠');
+
+            safe = safe.replace(/\$([^$]+)\$/g, (_,x)=>'<span class="formula-render">'+latexLite(x)+'</span>');
+            safe = safe.replace(/(^|[^A-Za-zÀ-ỹ])([A-Z][A-Za-z0-9^+\-−]{1,18})(?=$|[^A-Za-zÀ-ỹ0-9])/g, (m,pre,tok)=>pre+chemTokenToHtml(tok));
+            safe = safe.replace(/(Δ(?:r|f|c)?H)(°|⊖)?/g, (m,a,b)=>'<span class="formula-render">'+a+(b||'')+'</span>');
+            return safe;
+        }
+
+
+        // Bảo vệ chính xác các dấu so sánh "<" và ">" trong câu hỏi/đáp án.
+        // Chỉ cho phép một nhóm thẻ HTML nội bộ dùng để render công thức/định dạng;
+        // mọi dấu < > còn lại được xem là ký hiệu Toán - Lý - Hóa và hiển thị nguyên vẹn.
+        function protectComparisonSigns(html='') {
+            let s = String(html || '');
+            const tags = [];
+            const entities = [];
+
+            // Giữ các entity có sẵn để không bị escape hai lần.
+            s = s.replace(/&(?:lt|gt|amp|quot|#039|#39|#x27);/gi, m => {
+                const i = entities.push(m) - 1;
+                return `@@ENT${i}@@`;
+            });
+
+            // Tạm cất các thẻ HTML hợp lệ do game tự tạo.
+            s = s.replace(/<\/?(?:sub|sup|strong|em|span|u|mark)(?:\s[^>]*)?>/gi, m => {
+                const i = tags.push(m) - 1;
+                return `@@TAG${i}@@`;
+            });
+
+            // Những dấu còn lại là ký hiệu so sánh, bắt buộc hiển thị ra màn hình.
+            s = s.replace(/&/g, '&amp;')
+                 .replace(/</g, '&lt;')
+                 .replace(/>/g, '&gt;');
+
+            // Trả lại entity và thẻ hợp lệ.
+            s = s.replace(/@@ENT(\d+)@@/g, (_, i) => entities[Number(i)] || '')
+                 .replace(/@@TAG(\d+)@@/g, (_, i) => tags[Number(i)] || '');
+
+            return s;
+        }
+
+        function enhanceRichHtml(html='') {
+            if (!html) return '';
+            html = protectComparisonSigns(html);
+            const box=document.createElement('div'); box.innerHTML=html;
+            const walker=document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+            const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode);
+            nodes.forEach(n=>{
+                const span=document.createElement('span'); span.innerHTML=autoFormulaText(n.nodeValue); n.parentNode.replaceChild(span,n);
+            });
+            return '<span class="formula-render chem-eq">'+box.innerHTML+'</span>';
+        }
+
+        // Giải mã entity HTML đúng 1 lần trước khi render văn bản thuần.
+        // Ví dụ: &lt; -> < ; &gt; -> > ; &amp; -> &
+        // Sau đó autoFormulaText() sẽ escape lại đúng 1 lần để trình duyệt
+        // hiển thị ký hiệu thật, không hiện chữ &lt; / &gt;.
+        function decodeHtmlEntitiesOnce(text='') {
+            const ta = document.createElement('textarea');
+            ta.innerHTML = String(text || '');
+            return ta.value;
+        }
+
+        function renderRich(value='') {
+            const str = String(value || '');
+
+            // Nếu có thẻ nội bộ dùng cho công thức/định dạng Word thì xử lý rich HTML.
+            if (/<\/?(?:sub|sup|strong|em|span|u|mark)/i.test(str)) {
+                return enhanceRichHtml(str);
+            }
+
+            // Nội dung thuần từ DOCX thường đã chứa entity như &lt; và &gt;.
+            // Giải mã 1 lần rồi mới đưa qua autoFormulaText để tránh double-escape.
+            const decoded = decodeHtmlEntitiesOnce(str);
+            return '<span class="formula-render chem-eq">' + autoFormulaText(decoded) + '</span>';
+        }
+
+        // Kết quả mong đợi sau render:
+        // 'Na &lt; Mg' -> hiển thị: Na < Mg
+        // 'Cl &gt; Br' -> hiển thị: Cl > Br
+        // 'x <= 5'     -> hiển thị: x ≤ 5
+        // 'v >= 0'     -> hiển thị: v ≥ 0
+
+        async function parseXlsxSimple(file) {
+            const zip = await unzipEntries(await file.arrayBuffer());
+            const shared=[];
+            if(zip['xl/sharedStrings.xml']){
+                const sx=xmlDocFromBytes(zip['xl/sharedStrings.xml']);
+                [...sx.getElementsByTagName('si')].forEach(si=> shared.push([...si.getElementsByTagName('t')].map(t=>t.textContent||'').join('')));
+            }
+            let sheetName = Object.keys(zip).find(k=>/^xl\/worksheets\/sheet\d+\.xml$/.test(k));
+            if(!sheetName) throw new Error('Không tìm thấy sheet Excel.');
+            const sh=xmlDocFromBytes(zip[sheetName]);
+            const values=[];
+            [...sh.getElementsByTagName('c')].forEach(c=>{
+                const t=c.getAttribute('t'); const v=c.getElementsByTagName('v')[0];
+                if(!v) return; let val=v.textContent||'';
+                if(t==='s') val=shared[parseInt(val)] ?? val;
+                values.push(String(val).trim());
+            });
+            return values.filter(Boolean);
+        }
+
+        function cleanNames(lines) {
+            const header = /^(stt|số\s*thứ\s*tự|họ\s*(và)?\s*tên|họ tên|danh sách(?:\s*học\s*sinh)?|student|name)$/i;
+            const seen = new Set(), out = [];
+
+            for (let x of lines) {
+                x = stripHtml(String(x))
+                    .replace(/\u00A0/g, ' ')
+                    .replace(/^\s*\d+\s*[.\-):]+\s*/, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                if (!x) continue;
+                if (header.test(x)) continue;
+                if (/^\d+$/.test(x)) continue;
+                if (/^lớp\b/i.test(x)) continue;
+                if (/^trường\b/i.test(x)) continue;
+                if (/^danh\s*sách\b/i.test(x)) continue;
+                if (/^(ngày|tháng|năm)\b/i.test(x)) continue;
+                if (x.length < 3 || x.length > 100) continue;
+
+                const words = x.split(/\s+/).filter(Boolean);
+                if (words.length < 2 || !/[A-Za-zÀ-ỹĐđ]/.test(x)) continue;
+
+                const key = x.toLocaleLowerCase('vi');
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    out.push(x);
+                }
+            }
+            return out;
+        }
+
+        async function legacyDocBestEffort(file){
+            const buf=await file.arrayBuffer(); const u8=new Uint8Array(buf);
+            const attempts=[];
+            try{ attempts.push(new TextDecoder('utf-16le').decode(u8)); }catch(e){}
+            try{ attempts.push(new TextDecoder('windows-1258').decode(u8)); }catch(e){}
+            attempts.push(new TextDecoder('latin1').decode(u8));
+            const candidates=[];
+            for(const txt of attempts){
+                (txt.match(/[A-Za-zÀ-ỹĐđ][A-Za-zÀ-ỹĐđ .,'’\-]{3,80}/g)||[]).forEach(x=>candidates.push(x.trim()));
+            }
+            return candidates;
+        }
+
+        // --- XỬ LÝ FILE HỌC SINH ---
+        async function handleHSFile(input) {
+            const file=input.files[0]; if(!file) return;
+            try{
+                const ext=(file.name.split('.').pop()||'').toLowerCase(); let raw=[];
+                if(ext==='docx') raw=(await readDocxParagraphs(file)).map(x=>x.plain);
+                else if(ext==='xlsx') raw=await parseXlsxSimple(file);
+                else if(ext==='xls' && window.XLSX){
+                    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'}); const sh=wb.Sheets[wb.SheetNames[0]];
+                    raw=XLSX.utils.sheet_to_json(sh,{header:1}).flat().filter(Boolean).map(String);
+                } else if(ext==='csv' || ext==='txt') raw=(await file.text()).split(/\r?\n|,/);
+                else if(ext==='doc') raw=await legacyDocBestEffort(file);
+                else throw new Error('Định dạng chưa hỗ trợ.');
+                const names=cleanNames(raw);
+                if(!names.length) throw new Error('Không nhận diện được tên học sinh. Với file .doc cũ, nên Save As thành .docx để đọc chính xác.');
+                students=names; availableStudents=[...students]; currentStudent=null; initWheel(); initHistoryBoard();
+                showNotify(`✅ Đã nạp ${students.length} học sinh từ ${file.name}`);
+            }catch(err){ showNotify('❌ '+err.message); }
+            input.value='';
+        }
+
+        function normalizeQuote(s=''){ return s.replace(/^["“”'']+|["“”'']+$/g,'').trim(); }
+
+        // Làm sạch HTML của phương án trả lời: bỏ dấu định dạng dùng để đánh dấu đáp án đúng
+        // (gạch chân / tô màu / in đậm / in nghiêng) nhưng vẫn giữ sub/sup và công thức.
+        function cleanAnswerOptionHtml(html='', letter='') {
+            let s = String(html || '');
+            // Bỏ các thẻ định dạng chỉ dùng để đánh dấu đáp án đúng trong Word.
+            s = s.replace(/<\/?(?:u|mark|strong|em)(?:\s[^>]*)?>/gi, '');
+            // Bỏ nhãn A./B./C./D. ở đầu phương án sau khi đã loại các thẻ định dạng.
+            const re = new RegExp('^\\s*' + letter + '\\s*[.)]\\s*', 'i');
+            s = s.replace(re, '');
+            return s.trim();
+        }
+
+        function parseQuestionParagraphs(paras){
+            const result=[]; let cur=null;
+            const flush=()=>{ if(!cur) return; if(cur.qPlain){ result.push(cur); } cur=null; };
+            for(const p of paras){
+                const plain=normalizeQuote((p.plain||'').trim()); if(!plain) continue;
+                if(/^hoặc\s*$/i.test(plain)){ flush(); continue; }
+                const qm=plain.match(/^Câu\s*(\d+)\s*[.:)]\s*(.*)$/i);
+                if(qm){ flush();
+                    const prefix=(p.html||'').replace(/^["“”']?\s*Câu\s*\d+\s*[.:)]\s*/i,'');
+                    cur={sourceId:parseInt(qm[1]), qPlain:qm[2].trim(), qHtml:prefix||escapeHtml(qm[2].trim()), options:[], correct:null, answerText:'', boldAnswer:null};
+                    continue;
+                }
+                if(!cur) continue;
+                const om=plain.match(/^([A-D])\s*[.)]\s*(.*)$/i);
+                if(om){
+                    const letter=om[1].toUpperCase();
+                    let oh = cleanAnswerOptionHtml(p.html || '', letter);
+                    const marked=/^\s*[\*✓✔]/.test(om[2]) || /\[(?:đúng|correct)\]\s*$/i.test(om[2]);
+                    let txt=om[2].replace(/^\s*[\*✓✔]\s*/,'').replace(/\s*\[(?:đúng|correct)\]\s*$/i,'').trim();
+                    oh=oh.replace(/^\s*[\*✓✔]\s*/,'').replace(/\s*\[(?:đúng|correct)\]\s*$/i,'');
+                    cur.options.push({letter, plain:txt, html:oh||escapeHtml(txt)});
+                    if(marked || p.boldAll || p.underlineAny || p.highlightAny) cur.correct=letter;
+                    continue;
+                }
+                const am=plain.match(/^(?:Đáp\s*án(?:\s*đúng)?|ĐA|Answer)\s*[:\-]\s*(.+)$/i);
+                if(am){ cur.answerText=am[1].trim(); const x=cur.answerText.match(/^([A-D])\b/i); if(x) cur.correct=x[1].toUpperCase(); continue; }
+                if(cur.options.length===0){ cur.qPlain += ' '+plain; cur.qHtml += ' '+(p.html||escapeHtml(plain)); }
+            }
+            flush();
+            return result.slice(0,MAX_QUESTIONS).map((x,idx)=>{
+                if(x.options.length>=2){
+                    const ci=x.correct ? 'ABCD'.indexOf(x.correct) : -1;
+                    return {id:idx+1,type:'mcq',q:x.qHtml,a:x.options.map(o=>o.html),correct:ci,missingAnswer:ci<0};
+                }
+                const ans=x.answerText.trim();
+                if(/^(đúng|sai)$/i.test(ans)) return {id:idx+1,type:'tf',q:x.qHtml,correct:/^đúng$/i.test(ans)?'Đúng':'Sai'};
+                return {id:idx+1,type:'input',q:x.qHtml,correct:ans,missingAnswer:!ans};
+            });
+        }
+
+        // --- XỬ LÝ FILE CÂU HỎI ---
+        async function handleCHFile(input) {
+            const file=input.files[0]; if(!file) return;
+            try{
+                const ext=(file.name.split('.').pop()||'').toLowerCase(); let paras=[];
+                if(ext==='docx') paras=await readDocxParagraphs(file);
+                else if(ext==='txt') paras=(await file.text()).split(/\r?\n/).map(t=>({plain:t,html:escapeHtml(t),boldAll:false}));
+                else if(ext==='doc'){
+                    const lines=await legacyDocBestEffort(file); paras=lines.map(t=>({plain:t,html:escapeHtml(t),boldAll:false}));
+                } else throw new Error('Hãy dùng file DOCX (khuyến nghị) hoặc TXT.');
+                const qs=parseQuestionParagraphs(paras);
+                if(!qs.length) throw new Error('Không đọc được câu hỏi. Mỗi câu nên bắt đầu bằng “Câu 1.”, các lựa chọn A. B. C. D.');
+                questions=qs; refreshGameUI();
+                const miss=qs.filter(q=>q.missingAnswer).length;
+                const recognized = qs.length - miss;
+                showNotify(`🚀 Đã nạp ${qs.length} câu hỏi – nhận diện đáp án: ${recognized}/${qs.length}${miss ? ` – ${miss} câu chưa thấy đáp án đúng` : ''}!`);
+            }catch(err){ showNotify('❌ '+err.message); }
+            input.value='';
+        }
+
+        // --- GIAO DIỆN ---
+function renderQuestionGrid() {
+    const grid = document.getElementById('questionGrid');
+    grid.innerHTML = '';
+
+    questions.forEach(q => {
+        const btn = document.createElement('button');
+        btn.className = 'q-btn btn-3d h-14 text-sm';
+        btn.id = `qbtn-${q.id}`;
+        btn.innerHTML = `Câu ${q.id}`;
+
+btn.onclick = function () {
+const bam = document.getElementById("clickSound");
+bam.pause();
+bam.currentTime = 0;
+bam.play();
+
+openQuestion(q);
+};
+        grid.appendChild(btn);
+    });
+}
+
+function initHistoryBoard() {
+    const board = document.getElementById('historyBoard');
+    board.innerHTML = '';
+    historyData = new Array(questions.length).fill(null);
+
+    historyData.forEach((_, idx) => {
+        const slot = document.createElement('div');
+        slot.className = "history-slot bg-yellow-100/10 text-white/50 border-white/20";
+        slot.id = `slot-${idx}`;
+        slot.innerText = `Câu ${idx + 1}`;
+        board.appendChild(slot);
+    });
+}
+        // --- VÒNG QUAY ---
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        let startAngle = 0;
+        let isSpinning = false;
+
+        function initWheel() { drawWheel(); }
+
+        function drawWheel() {
+            ctx.clearRect(0,0,300,300);
+            const colors = ["#ef4444", "#fbbf24", "#3b82f6", "#10b981", "#8b5cf6", "#f472b6"];
+            const segments = 12;
+            const arc = Math.PI * 2 / segments;
+            for(let i=0; i<segments; i++) {
+                const angle = startAngle + i * arc;
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.beginPath();
+                ctx.moveTo(150, 150);
+                ctx.arc(150, 150, 140, angle, angle + arc);
+                ctx.fill();
+                ctx.strokeStyle = "white";
+                ctx.stroke();
+                
+                ctx.save();
+                ctx.translate(150 + Math.cos(angle + arc/2)*100, 150 + Math.sin(angle + arc/2)*100);
+                ctx.rotate(angle + arc/2 + Math.PI/2);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 12px Arial";
+                ctx.fillText("★", -5, 0);
+                ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+    if (isSpinning) return;
+    if (availableStudents.length === 0) return showNotify("⚠️ Đã hết học sinh trong danh sách!");
+
+    isSpinning = true;
+    resetFeedback();
+    document.getElementById('resultName').innerText = "...";
+
+    const spinSound = document.getElementById('spinSound');
+    spinSound.pause();
+    spinSound.currentTime = 0;
+    spinSound.loop = true;
+    spinSound.play().catch(() => {});
+
+    const duration = 20000;
+    const slowDownStart = 15000;
+    const startTime = performance.now();
+
+    const totalRotation = Math.PI * 70 + Math.random() * Math.PI * 8;
+
+    function animate(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        let ease;
+
+        if (elapsed < slowDownStart) {
+            ease = (elapsed / duration) * 0.78;
+        } else {
+            const slowProgress = (elapsed - slowDownStart) / (duration - slowDownStart);
+            const slowEase = 1 - Math.pow(1 - slowProgress, 3);
+            ease = 0.78 + slowEase * 0.22;
+        }
+
+        startAngle = ease * totalRotation;
+        drawWheel();
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            isSpinning = false;
+
+            spinSound.pause();
+            spinSound.currentTime = 0;
+            spinSound.loop = false;
+
+            const randomIdx = Math.floor(Math.random() * availableStudents.length);
+            currentStudent = availableStudents[randomIdx];
+
+            // Xóa ngay để lần sau không gọi lại học sinh này
+            availableStudents.splice(randomIdx, 1);
+
+            document.getElementById('resultName').innerText = currentStudent;
+
+            const slotIdx = historyData.findIndex(h => h === null);
+            if (slotIdx !== -1) {
+                historyData[slotIdx] = { name: currentStudent, result: null };
+                const slot = document.getElementById(`slot-${slotIdx}`);
+                slot.innerText = currentStudent;
+                slot.classList.replace('text-white/50', 'text-white');
+                slot.classList.replace('bg-yellow-100/10', 'bg-blue-600');
+                slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            confetti({ particleCount: 120, spread: 80, origin: { x: 0.2, y: 0.5 } });
+        }
+    }
+
+    requestAnimationFrame(animate);
+}
+
+        // --- CÂU HỎI ---
+        let currentQ = null;
+        function openQuestion(q) {
+    const btn = document.getElementById(`qbtn-${q.id}`);
+    if(btn.classList.contains('used')) return;
+    if(!currentStudent) return showNotify("⚠️ Thầy hãy quay tên học sinh trước khi chọn câu hỏi!");
+
+    currentQ = q;
+    document.getElementById('qNumberDisplay').innerText = q.id;
+    document.getElementById('qContent').innerHTML = renderRich(q.q);
+    
+    const area = document.getElementById('answerArea');
+    area.innerHTML = '';
+            
+            // Xử lý giao diện theo từng loại câu hỏi
+            if (q.type === 'mcq') {
+                const innerGrid = document.createElement('div');
+                innerGrid.className = "grid grid-cols-2 gap-4 w-full";
+                const labels = ["A", "B", "C", "D"];
+                (q.a || []).filter(opt => opt && opt.trim() !== "").forEach((opt, idx) => {
+                    const b = document.createElement('button');
+                    b.className = "bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-lg font-bold text-lg border-2 border-white/30 btn-3d";
+                    b.innerHTML = `<span class="text-yellow-300 mr-2">${labels[idx]}.</span> ${renderRich(opt)}`;
+                    b.onclick = () => checkAnswer(idx);
+                    innerGrid.appendChild(b);
+                });
+                area.appendChild(innerGrid);
+            } 
+            else if (q.type === 'tf') {
+                const flexBox = document.createElement('div');
+                flexBox.className = "flex justify-center gap-10 w-full";
+                ["Đúng", "Sai"].forEach(label => {
+                    const b = document.createElement('button');
+                    b.className = `${label === "Đúng" ? 'bg-green-600' : 'bg-red-600'} hover:opacity-80 text-white px-12 py-6 rounded-lg font-black text-3xl border-4 border-white btn-3d`;
+                    b.innerText = label.toUpperCase();
+                    b.onclick = () => checkAnswer(label);
+                    flexBox.appendChild(b);
+                });
+                area.appendChild(flexBox);
+            }
+            else if (q.type === 'input') {
+                const container = document.createElement('div');
+                container.className = "flex flex-col items-center gap-6 w-full";
+                const input = document.createElement('input');
+                input.id = "shortAnsInput";
+                input.className = "number-input w-64";
+                input.placeholder = "Nhập kết quả..."; input.autocomplete = "off";
+                const submit = document.createElement('button');
+                submit.className = "bg-yellow-500 text-black px-10 py-3 rounded-lg font-bold text-xl btn-3d";
+                submit.innerText = "XÁC NHẬN";
+                submit.onclick = () => checkAnswer(document.getElementById('shortAnsInput').value);
+                container.appendChild(input);
+                container.appendChild(submit);
+                area.appendChild(container);
+            }
+
+            document.getElementById('questionModal').style.display = 'flex';
+            btn.classList.add('used');
+            startTimer();
+        }
+
+        function startTimer() {
+            let time = 25;
+            document.getElementById('timer').innerText = time;
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                time--;
+                document.getElementById('timer').innerText = time;
+                if(time <= 0) {
+                    clearInterval(timerInterval);
+                    closeQuestion();
+                    showNotify("⏰ Hết thời gian suy nghĩ!");
+                }
+            }, 1000);
+        }
+
+        function checkAnswer(userVal) {
+    clearInterval(timerInterval);
+    let isCorrect = false;
+    
+    if (currentQ.missingAnswer) {
+        showNotify('⚠️ Câu này chưa nhận diện được đáp án đúng. Hãy gạch chân/tô màu/in đậm phương án đúng hoặc thêm dòng: Đáp án đúng: A/B/C/D');
+        isCorrect = false;
+    }
+    else if (currentQ.type === 'mcq') isCorrect = (userVal === currentQ.correct);
+    else if (currentQ.type === 'tf') isCorrect = (userVal === currentQ.correct);
+    else if (currentQ.type === 'input') {
+        isCorrect = (
+            userVal.toString().trim().toLowerCase() ===
+            currentQ.correct.toString().trim().toLowerCase()
+        );
+    }
+
+    closeQuestion();
+
+    const correctSound = document.getElementById('correctSound');
+    const wrongSound = document.getElementById('wrongSound');
+
+    if (isCorrect) {
+        correctSound.currentTime = 0;
+        correctSound.play().catch(() => {});
+    } else {
+        wrongSound.currentTime = 0;
+        wrongSound.play().catch(() => {});
+    }
+    
+    const fbArea = document.getElementById('feedbackArea');
+    const placeholder = document.getElementById('feedbackPlaceholder');
+    const title = document.getElementById('feedbackTitle');
+    const reward = document.getElementById('rewardSection');
+    
+    placeholder.classList.add('hidden');
+    fbArea.classList.remove('hidden');
+    reward.classList.add('hidden');
+
+    const activeSlotIdx = historyData.findLastIndex(h => h !== null && h.result === null);
+    const activeSlot = document.getElementById(`slot-${activeSlotIdx}`);
+
+    if (isCorrect) {
+        title.innerHTML = `<span class="text-green-400 text-lg uppercase font-black">CHÍNH XÁC!</span><br><span class="text-[10px]">Thầy Lê Nguyễn Cường tặng quà:</span>`;
+        reward.classList.remove('hidden');
+        document.getElementById('giftResult').classList.add('hidden');
+        if(activeSlot) activeSlot.classList.replace('bg-blue-600', 'bg-green-600');
+    } else {
+        title.innerHTML = `<span class="text-red-400 text-lg uppercase font-black">CHƯA ĐÚNG!</span><br><span class="text-[10px]">Đừng buồn, hãy cố gắng ở câu sau nhé!</span>`;
+        if(activeSlot) activeSlot.classList.replace('bg-blue-600', 'bg-red-600');
+    }
+
+    if(activeSlot) historyData[activeSlotIdx].result = isCorrect;
+    currentStudent = null; 
+}
+
+        function closeQuestion() { document.getElementById('questionModal').style.display = 'none'; }
+
+        function openGift() {
+            const res = document.getElementById('giftResult');
+            res.innerHTML = `BẠN NHẬN ĐƯỢC:<br><span class="text-white text-lg">${rewards[Math.floor(Math.random()*rewards.length)]}</span>`;
+            res.classList.remove('hidden');
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+        }
+
+        // --- HỖ TRỢ ---
+        function removeName() {
+            if(!currentStudent) return;
+            availableStudents = availableStudents.filter(s => s !== currentStudent);
+            document.getElementById('resultName').innerText = "Đã xóa";
+            currentStudent = null;
+        }
+
+        function closeName() {
+            document.getElementById('resultName').innerText = "Đã đóng";
+            currentStudent = null;
+        }
+
+        function resetFeedback() {
+            document.getElementById('feedbackArea').classList.add('hidden');
+            document.getElementById('feedbackPlaceholder').classList.remove('hidden');
+        }
+
+        function createSnowflakes() {
+            const container = document.body;
+            const icons = ["❄", "🧪", "⚗️", "⚛️"];
+            for(let i=0; i<30; i++) {
+                let f = document.createElement("div");
+                f.className = "snowflake";
+                f.innerHTML = icons[Math.floor(Math.random()*icons.length)];
+                f.style.left = Math.random() * 100 + "vw";
+                f.style.fontSize = (Math.random() * 15 + 10) + "px";
+                f.style.animationDuration = (Math.random() * 5 + 5) + "s";
+                f.style.opacity = Math.random();
+                container.appendChild(f);
+            }
+        }
+
+        const bgAudio = document.getElementById('bgMusic');
+        function loadMusic(input) {
+            const file = input.files[0];
+            if(file) {
+                bgAudio.src = URL.createObjectURL(file);
+                bgAudio.play();
+                document.getElementById('musicIcon').className = "fas fa-volume-up";
+            }
+        }
+        function toggleMusic() {
+            if(bgAudio.paused) { bgAudio.play(); document.getElementById('musicIcon').className = "fas fa-volume-up"; }
+            else { bgAudio.pause(); document.getElementById('musicIcon').className = "fas fa-volume-mute"; }
+        }
+
+        function resetGame() {
+            availableStudents = [...students];
+            currentStudent = null;
+            document.getElementById('resultName').innerText = "???";
+            const qBtns = document.querySelectorAll('.q-btn');
+            qBtns.forEach(btn => btn.classList.remove('used'));
+            initHistoryBoard();
+            resetFeedback();
+            showNotify("🔄 Trò chơi đã được làm mới hoàn toàn!");
+        }
+    </script>
+</body>
+</html>
+
